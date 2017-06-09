@@ -1,0 +1,185 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Chat de TutosLive.com</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <style>
+        .container {
+            max-width: 500px;
+            border: solid 1px black;
+        }
+        
+        #hidden {
+            display: none;
+        }
+        
+        #identification {
+            text-align: center;
+        }
+        
+        #messagesList {
+            text-align: left;
+            word-wrap: break-word;
+            margin-bottom: 35px;
+        }
+        
+        .messages {
+            margin-bottom: 10px;
+        }
+        
+        .login {
+            background-color: #93c193;
+            margin: auto;
+            text-align: center;
+        }
+        
+        .logout {
+            background-color: #ff8383;
+            margin: auto;
+            text-align: center;
+        }
+        
+        .flex-area {
+            display: flex;
+        }
+        
+        #messageTxt {
+            resize: none;
+            flex-grow: 1;
+            max-width: 430px;
+            height: 2.5em;
+            margin-left: auto;
+        }
+        
+        #sendBtn {
+            width: 70px;
+            height: 30px;
+            background-color: #9ecafd;
+            border-radius: 5px 5px;
+            border: solid 1px black;
+            margin-left: 5px;
+            margin-right: auto;
+        }
+        
+        .option_scroll {
+            position: fixed;
+            height: 30px;
+            bottom: 35px;
+            background-color: white;
+            border: solid 1px black;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="identification">
+
+            <p>Veuillez entrer un nom compris entre 5 et 10 caractères</p>
+            <input id="idName" type="text" autofocus>
+            <button id="idOK">Valider</button>
+
+        </div>
+
+        <div id="hidden">
+            <section id="messagesList">
+                <!-- Liste des messages générée dynamiquement selon les messagesFromServer -->
+            </section>
+            <!-- Elements interactifs du DOM -->
+            <section class="flex-area">
+                <!-- Je sais que textarea n'est pas le plus pratique, mais c'est le seul élément que j'ai trouvé pour avoir du texte sur au moins deux lignes avant de pouvoir scroll-down. -->
+                <textarea id="messageTxt" type="text" autofocus></textarea>
+                <button id="sendBtn">Envoyer</button>
+                <p class="option_scroll"><input id="autoScroll" type="checkbox" name="auto-scroll" checked/> Activer le défilement auto</p>
+            </section>
+        </div>
+    </div>
+
+
+    <!-- Script de socket.io. Indispensable pour que cela fonctionne. Il est cherché automatiquement dans les modules installés dans le dossier "node_module" -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Script du client. Tout aussi indispensable pour communiquer avec le serveur -->
+    <script>
+        //Démarre la liaison avec le serveur au moment du chargement de la page.
+        var socket = io();
+
+        //input pour que l'utilisateur puisse définir son nom.
+        var btnOK = document.querySelector("#idOK");
+
+        //bouton de connexion au chat
+        btnOK.addEventListener("click", function(event) {
+
+            var usrName = document.querySelector("#idName").value;
+            //on vérifie que l'input est plus grand que 4, pour obliger des noms assez lisibles
+            if (usrName.length > 4) {
+                //on envoie le nom pour que le serveur sache qui se connecte
+                socket.emit('new_client', usrName);
+                // on l'envoie aussi pour savoir qui se déconnecte
+                socket.emit('disconnect', usrName);
+                //On change le titre de la page en ajoutant le nom de l'utilisateur. Utile pour identifier la page et savoir qui on est.
+                document.title = usrName + ' - ' + document.title;
+                //on cache le champ d'entrée du nom
+                document.querySelector("#identification").style.display = "none";
+                //on affiche le chat
+                document.querySelector("#hidden").style.display = "block";
+            } else {
+                //sinon on efface tout et on recommence
+                document.querySelector("#idName").value = "";
+                usrName = "";
+                event.preventDefault();
+            }
+        });
+
+        //Identifie les éléments interactifs du DOM
+        var msg = document.getElementById("messageTxt");
+        var btn = document.getElementById("sendBtn");
+        var list = document.getElementById("messagesList");
+        var scroll = document.getElementById("autoScroll");
+
+        //Fonction du bouton "envoyer le message"
+        function envoyer() {
+            //test du champ de texte vide
+            if (msg.value !== "") {
+                //Envoie un message sur l'evenement "messageFromClient". Le serveur écoute cet evenement.
+                socket.emit('messageFromClient', msg.value);
+                //on efface le contenu du champ input
+                msg.value = '';
+                //on replace le focus dessus pour pouvoir réécrire immédiatement.
+                msg.focus();
+            }
+
+        }
+
+        btn.addEventListener('click', envoyer);
+
+        //Fonction qui test si le bouton enter est appuyé, pour envoyer le message depuis un textarea
+        window.onkeydown = function(event) {
+            //13 est le keycode de la touche enter
+            if (event.keyCode == 13) {
+                envoyer();
+                //sans cela, il se crée un retour à la ligne automatique qui permet de spam un message vide.
+                if (event.preventDefault) event.preventDefault();
+                return false;
+            }
+        }
+
+        //Une fois le message traité par le serveur, il est renvoyé et le message est ajouté à la suite dans un DIV avec une classe "messages"
+        socket.on('messageFromServer', function(data) {
+            var item = document.createElement('article');
+            item.innerHTML = data;
+            item.className = "messages";
+            list.appendChild(item);
+            //on scroll s'il y a un nouveau message et que l'option est cochée
+            if (scroll.checked) {
+                btn.scrollIntoView(true);
+            }
+
+        });
+
+    </script>
+</body>
+
+</html>
